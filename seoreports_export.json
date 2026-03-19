@@ -1,0 +1,111 @@
+[
+  {
+    "_id": "69b7cd4532b9e19b12e1411b",
+    "website": "69b7cd3532b9e19b12e14117",
+    "user": "69b5b63ae5e1374241ed32d6",
+    "seoScore": 84,
+    "technicalScore": 85,
+    "performanceScore": 83,
+    "issues": [
+      {
+        "category": "On-Page",
+        "issue": "Missing Meta Description",
+        "impact": "High",
+        "recommendation": "Add a meta description.",
+        "_id": "69b7cd4532b9e19b12e1411c"
+      }
+    ],
+    "suggestions": [],
+    "scanDate": "2026-03-16T09:28:37.380Z",
+    "createdAt": "2026-03-16T09:28:37.382Z",
+    "updatedAt": "2026-03-16T09:28:37.382Z",
+    "__v": 0
+  },
+  {
+    "_id": "69b7cd4f32b9e19b12e1411e",
+    "website": "69b7cd3532b9e19b12e14117",
+    "user": "69b5b63ae5e1374241ed32d6",
+    "seoScore": 84,
+    "technicalScore": 85,
+    "performanceScore": 84,
+    "issues": [
+      {
+        "category": "On-Page",
+        "issue": "Missing Meta Description",
+        "impact": "High",
+        "recommendation": "Add a meta description.",
+        "_id": "69b7cd4f32b9e19b12e1411f"
+      }
+    ],
+    "suggestions": [],
+    "scanDate": "2026-03-16T09:28:47.747Z",
+    "createdAt": "2026-03-16T09:28:47.748Z",
+    "updatedAt": "2026-03-16T09:28:47.748Z",
+    "__v": 0
+  },
+  {
+    "_id": "69b7cdff32b9e19b12e14137",
+    "website": "69b7cd3532b9e19b12e14117",
+    "user": "69b5b63ae5e1374241ed32d6",
+    "seoScore": 78,
+    "technicalScore": 85,
+    "performanceScore": 72,
+    "issues": [
+      {
+        "category": "On-Page",
+        "issue": "Missing Meta Description",
+        "impact": "High",
+        "recommendation": "Add a meta description.",
+        "_id": "69b7cdff32b9e19b12e14138"
+      }
+    ],
+    "suggestions": [],
+    "scanDate": "2026-03-16T09:31:43.423Z",
+    "createdAt": "2026-03-16T09:31:43.424Z",
+    "updatedAt": "2026-03-16T09:31:43.424Z",
+    "__v": 0
+  },
+  {
+    "_id": "69b7d09732b9e19b12e1414a",
+    "website": "69b7d08e32b9e19b12e1413c",
+    "user": "69b5b63ae5e1374241ed32d6",
+    "seoScore": 90,
+    "technicalScore": 100,
+    "performanceScore": 81,
+    "issues": [],
+    "suggestions": [],
+    "scanDate": "2026-03-16T09:42:47.769Z",
+    "createdAt": "2026-03-16T09:42:47.770Z",
+    "updatedAt": "2026-03-16T09:42:47.770Z",
+    "__v": 0
+  },
+  {
+    "_id": "69b7d64932b9e19b12e1419e",
+    "website": "69b7d63232b9e19b12e1417e",
+    "user": "69b5b63ae5e1374241ed32d6",
+    "seoScore": 79,
+    "technicalScore": 80,
+    "performanceScore": 79,
+    "issues": [
+      {
+        "category": "On-Page",
+        "issue": "Missing Meta Description",
+        "impact": "High",
+        "recommendation": "Add a meta description.",
+        "_id": "69b7d64932b9e19b12e1419f"
+      },
+      {
+        "category": "On-Page",
+        "issue": "Multiple H1 Tags",
+        "impact": "Low",
+        "recommendation": "Use only one <h1> tag.",
+        "_id": "69b7d64932b9e19b12e141a0"
+      }
+    ],
+    "suggestions": [],
+    "scanDate": "2026-03-16T10:07:05.600Z",
+    "createdAt": "2026-03-16T10:07:05.601Z",
+    "updatedAt": "2026-03-16T10:07:05.601Z",
+    "__v": 0
+  }
+]

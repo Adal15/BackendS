@@ -1,0 +1,12 @@
+[
+  {
+    "_id": "69b5b63ae5e1374241ed32d6",
+    "name": "adal",
+    "email": "adalrizvi15@gmail.com",
+    "password": "$2b$10$DcRsDomScwnJ/vyyWTwYrudG3O9diNpAAzE3LZoUCf8unqnYbCO76",
+    "role": "Client User",
+    "createdAt": "2026-03-14T19:25:46.854Z",
+    "updatedAt": "2026-03-14T19:25:46.854Z",
+    "__v": 0
+  }
+]
