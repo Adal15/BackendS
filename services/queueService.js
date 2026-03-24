@@ -1,85 +1,136 @@
-const { Queue, Worker } = require('bullmq');
 const Redis = require('ioredis');
 const SEOReport = require('../models/Report');
-const Website = require('../models/Website');
 const { analyzeSEO } = require('./seoEngine');
 
-const connection = new Redis(process.env.REDIS_URI || 'redis://127.0.0.1:6379', {
-    maxRetriesPerRequest: null
-});
+// ── Redis / BullMQ setup with graceful fallback ──────────────────────────────
+let seoQueue = null;
+let redisReady = false;
+let errorLogged = false;
 
-const seoQueue = new Queue('seo-analysis', { connection });
+const redisConnection = process.env.REDIS_URI ? new Redis(process.env.REDIS_URI, {
+    maxRetriesPerRequest: null,
+    enableOfflineQueue: false,   // don't pile up commands while disconnected
+    lazyConnect: true,    // don't auto-connect on require
+    retryStrategy: (times) => {
+        // Wait 5 s then retry, but stop logging after the first failure
+        return 5000;
+    },
+}) : null;
 
-const worker = new Worker('seo-analysis', async job => {
-    console.log(`Processing job ${job.id} for URL: ${job.data.url}`);
+if (redisConnection) {
+    redisConnection.on('error', (err) => {
+        if (!errorLogged) {
+            console.warn('[Redis] Not available – running without queue (direct mode).');
+            console.warn('[Redis] Start Redis on port 6379 to enable background job processing.');
+            errorLogged = true;
+        }
+        redisReady = false;
+    });
 
-    try {
-        const r = await analyzeSEO(job.data.url);
+    redisConnection.on('connect', () => {
+        redisReady = true;
+        errorLogged = false;
+        console.log('[Redis] Connected – queue mode enabled.');
 
-        const report = await SEOReport.create({
-            website: job.data.websiteId,
-            user:    job.data.userId,
+        // Lazily create the queue + worker only when Redis is actually up
+        if (!seoQueue) {
+            const { Queue, Worker } = require('bullmq');
 
-            // scores
-            seoScore:         r.seoScore,
-            technicalScore:   r.technicalScore,
-            performanceScore: r.performanceScore,
+            seoQueue = new Queue('seo-analysis', { connection: redisConnection });
 
-            // issues
-            issues: r.issues,
+            new Worker('seo-analysis', async job => {
+                console.log(`[Worker] Processing job ${job.id} for URL: ${job.data.url}`);
+                try {
+                    const report = await _createReport(job.data.url, job.data.userId, job.data.websiteId);
+                    console.log(`[Worker] Finished job ${job.id}, report ${report._id}`);
+                    return report._id;
+                } catch (error) {
+                    console.error(`[Worker] Failed job ${job.id}: ${error.message}`);
+                    throw error;
+                }
+            }, { connection: redisConnection });
+        }
+    });
+} else {
+    console.log('[Redis] REDIS_URI not set – running without queue (direct mode).');
+}
 
-            // technical flags
-            hasRobotsTxt:      r.hasRobotsTxt,
-            hasSitemap:        r.hasSitemap,
-            hasFavicon:        r.hasFavicon,
-            hasCustom404:      r.hasCustom404,
-            isWwwOptimized:    r.isWwwOptimized,
-            hasViewportMeta:   r.hasViewportMeta,
-            hasMediaQueries:   r.hasMediaQueries,
-            homepageReachable: r.homepageReachable,
+// Attempt connection (non-blocking)
+if (redisConnection) {
+    redisConnection.connect().catch(() => { });
+}
 
-            // title
-            titleText:   r.titleText,
-            titleLength: r.titleLength,
-            titleStatus: r.titleStatus,
+// ── Shared report creation logic ─────────────────────────────────────────────
+async function _createReport(url, userId, websiteId) {
+    const r = await analyzeSEO(url);
 
-            // meta description
-            metaDescText:   r.metaDescText,
-            metaDescLength: r.metaDescLength,
-            metaDescStatus: r.metaDescStatus,
+    return await SEOReport.create({
+        website: websiteId,
+        user: userId,
 
-            // headings
-            h1Count: r.h1Count,
-            h1Texts: r.h1Texts,
-            h2Count: r.h2Count,
-            h2Texts: r.h2Texts,
+        seoScore: r.seoScore,
+        technicalScore: r.technicalScore,
+        performanceScore: r.performanceScore,
 
-            // images
-            totalImages:      r.totalImages,
-            imageAltRatio:    r.imageAltRatio,
-            missingAltImages: r.missingAltImages,
+        issues: r.issues,
 
-            // links
-            internalLinks:    r.internalLinks,
-            externalLinks:    r.externalLinks,
-            linkRatioWarning: r.linkRatioWarning,
+        hasRobotsTxt: r.hasRobotsTxt,
+        hasSitemap: r.hasSitemap,
+        hasFavicon: r.hasFavicon,
+        hasCustom404: r.hasCustom404,
+        isWwwOptimized: r.isWwwOptimized,
+        hasViewportMeta: r.hasViewportMeta,
+        hasMediaQueries: r.hasMediaQueries,
+        homepageReachable: r.homepageReachable,
 
-            // keywords
-            keywords:        r.keywords,
-            keywordsInTitle: r.keywordsInTitle,
-            keywordsInDesc:  r.keywordsInDesc,
-        });
+        titleText: r.titleText,
+        titleLength: r.titleLength,
+        titleStatus: r.titleStatus,
 
-        console.log(`Finished job ${job.id}, produced report ${report._id}`);
-        return report._id;
-    } catch (error) {
-        console.error(`Failed job ${job.id}: ${error.message}`);
-        throw error;
-    }
-}, { connection });
+        metaDescText: r.metaDescText,
+        metaDescLength: r.metaDescLength,
+        metaDescStatus: r.metaDescStatus,
 
+        h1Count: r.h1Count,
+        h1Texts: r.h1Texts,
+        h2Count: r.h2Count,
+        h2Texts: r.h2Texts,
+
+        totalImages: r.totalImages,
+        imageAltRatio: r.imageAltRatio,
+        missingAltImages: r.missingAltImages,
+
+        internalLinks: r.internalLinks,
+        externalLinks: r.externalLinks,
+        linkRatioWarning: r.linkRatioWarning,
+
+        keywords: r.keywords,
+        keywordsInTitle: r.keywordsInTitle,
+        keywordsInDesc: r.keywordsInDesc,
+    });
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+/**
+ * Add an SEO analysis job.
+ * - If Redis is up  → enqueue via BullMQ (background worker processes it)
+ * - If Redis is down → run analysis directly (synchronous fallback)
+ */
 const addAnalysisJob = async (url, userId, websiteId) => {
-    return await seoQueue.add('analyze', { url, userId, websiteId });
+    if (redisReady && seoQueue) {
+        return await seoQueue.add('analyze', { url, userId, websiteId });
+    }
+
+    // Fallback: run directly without a queue
+    console.log('[Queue] Redis unavailable – running analysis directly for:', url);
+    const report = await _createReport(url, userId, websiteId);
+    
+    if (!report || !report._id) {
+        throw new Error('Analysis completed but failed to save report to database');
+    }
+    
+    return { id: 'direct', returnvalue: report._id };
 };
 
 module.exports = { addAnalysisJob };
+
