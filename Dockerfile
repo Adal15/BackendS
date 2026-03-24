@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libgtk-3-0 \
     libnspr4 \
+    libnss3 \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
     libstdc++6 \
@@ -36,6 +37,9 @@ RUN apt-get update && apt-get install -y \
     libxrender1 \
     libxss1 \
     libxtst6 \
+    libxshmfence1 \
+    libglu1-mesa \
+    libdrm2 \
     lsb-release \
     wget \
     xdg-utils \
