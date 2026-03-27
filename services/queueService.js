@@ -107,6 +107,16 @@ async function _createReport(url, userId, websiteId) {
         keywords: r.keywords,
         keywordsInTitle: r.keywordsInTitle,
         keywordsInDesc: r.keywordsInDesc,
+
+        // advanced
+        canonicalUrl: r.canonicalUrl,
+        hasNoindex:   r.hasNoindex,
+        ogTags:       r.ogTags,
+        hasSchemaData: r.hasSchemaData,
+        contentFreshness: r.contentFreshness,
+        brokenLinks: r.brokenLinks,
+        mobileSnapshotUrl: r.mobileSnapshotUrl,
+        googleRanking: r.googleRanking,
     });
 }
 

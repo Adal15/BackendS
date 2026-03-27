@@ -51,22 +51,59 @@ const STOP_WORDS = new Set([
     'do','did','will','would','could','should','may','might','can','has','its','your','our',
     'their','my','his','her','what','which','who','when','where','how','all','so','if','no',
     'more','also','up','out','about','into','over','after','then','than','these','those','some',
-    'such','there','here','been','just','get','new','other','page','site','web','click'
+    'such','there','here','been','just','get','new','other','page','site','web','click',
+    'main','home','contact','about','privacy','terms','policy','rights','reserved','copyright',
+    'menu','navigation','toggle','search','button','input','form','submit','pro','more','view',
+    'learn','read','get','start','started','welcome','back','top','bottom','left','right'
 ]);
 
 const extractKeywords = ($) => {
-    // Pull visible text from body, strip scripts/styles
-    $('script, style, noscript').remove();
-    const text = $('body').text() || '';
-    const words = text.toLowerCase().match(/\b[a-z]{3,}\b/g) || [];
+    // 1. Get candidate words from body
+    const bodyCopy = $('body').clone();
+    bodyCopy.find('script, style, noscript, nav, footer, header').remove();
+    const bodyText = bodyCopy.text().toLowerCase() || '';
+    
+    // 2. Get high-priority words from Title and Meta
+    const titleText = $('title').text().toLowerCase() || '';
+    const h1Text = $('h1').first().text().toLowerCase() || '';
+    const metaKeywords = ($('meta[name="keywords"]').attr('content') || '').toLowerCase();
+    
+    // Combined text for frequency analysis
+    const text = `${titleText} ${h1Text} ${metaKeywords} ${bodyText}`;
+    
+    // Support Unicode characters. First try 3+ chars, then 2+ if needed.
+    let words = text.match(/[\p{L}\p{N}]{3,}/gu) || [];
+    if (words.length < 5) {
+        words = text.match(/[\p{L}\p{N}]{2,}/gu) || [];
+    }
+    
     const freq = {};
     for (const w of words) {
-        if (!STOP_WORDS.has(w)) freq[w] = (freq[w] || 0) + 1;
+        if (!STOP_WORDS.has(w) && !/^\d+$/.test(w)) {
+            freq[w] = (freq[w] || 0) + 1;
+        }
     }
-    return Object.entries(freq)
+    
+    // Weighting: If a word is in Title or H1, boost its frequency heavily
+    Object.keys(freq).forEach(word => {
+        if (titleText.includes(word)) freq[word] += 20;
+        if (h1Text.includes(word)) freq[word] += 10;
+        if (metaKeywords.includes(word)) freq[word] += 5;
+    });
+
+    const sorted = Object.entries(freq)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10)
         .map(([word, count]) => ({ word, count }));
+
+    // ULTIMATE FALLBACK: If still no keywords, use the first few words of the title or H1
+    if (sorted.length === 0) {
+        const fallbackSource = titleText || h1Text || 'website';
+        const fallbackWords = fallbackSource.match(/[\p{L}\p{N}]{2,}/gu) || ['website'];
+        return fallbackWords.slice(0, 3).map(w => ({ word: w, count: 1 }));
+    }
+
+    return sorted;
 };
 
 const checkMediaQueries = async (content, $) => {
@@ -89,10 +126,157 @@ const checkMediaQueries = async (content, $) => {
     return false;
 };
 
+const checkBrokenLinks = async ($, baseUrl) => {
+    const internalLinks = [];
+    const urlObj = new URL(baseUrl);
+    
+    $('a[href]').each((_, el) => {
+        const href = $(el).attr('href');
+        if (!href) return;
+        
+        try {
+            const fullUrl = new URL(href, baseUrl).toString();
+            // Only check internal links to save time/resources
+            if (fullUrl.includes(urlObj.hostname) && !fullUrl.includes('#')) {
+                internalLinks.push({ url: fullUrl, text: $(el).text().trim() || 'Link' });
+            }
+        } catch (e) {}
+    });
+
+    // Check a sample of up to 5 links to avoid long wait
+    const sample = internalLinks.slice(0, 5);
+    const broken = [];
+    
+    for (const link of sample) {
+        try {
+            const res = await axios.head(link.url, { ...reqConfig, timeout: 3000 });
+            if (res.status >= 400) broken.push({ ...link, status: res.status });
+        } catch (e) {
+            broken.push({ ...link, status: e.response?.status || 500 });
+        }
+    }
+    return broken;
+};
+
+const extractOgTags = ($) => {
+    return {
+        title:       $('meta[property="og:title"]').attr('content') || '',
+        description: $('meta[property="og:description"]').attr('content') || '',
+        image:       $('meta[property="og:image"]').attr('content') || '',
+        url:         $('meta[property="og:url"]').attr('content') || ''
+    };
+};
+
+const checkSchemaData = ($) => {
+    return $('script[type="application/ld+json"]').length > 0;
+};
+
+const getContentFreshness = ($, headers) => {
+    const lastModHeader = headers['last-modified'];
+    const ogUpdated = $('meta[property="og:updated_time"]').attr('content') || 
+                      $('meta[property="article:published_time"]').attr('content') ||
+                      $('meta[property="article:modified_time"]').attr('content');
+    
+    return {
+        lastModified:         lastModHeader ? new Date(lastModHeader) : null,
+        ogUpdatedTime:        ogUpdated ? new Date(ogUpdated) : null,
+        articlePublishedTime: null // hard to extract consistently
+    };
+};
+
+// Google Ranking Helper
+const getGoogleRanking = async (domain, keyword) => {
+    if (!keyword) return 0;
+    try {
+        const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(keyword)}&num=30&hl=en`;
+        
+        console.log(`[SEO Engine] Checking Google rank for "${keyword}" for domain "${domain}"`);
+        const { $, content } = await crawlPage(searchUrl);
+        
+        // Detect CAPTCHA or Block
+        if (content.includes('unusual traffic') || content.includes('captcha') || content.includes('not a robot')) {
+            console.warn('[SEO Engine] Google blocked us (CAPTCHA). Falling back to DuckDuckGo...');
+            return await getDuckDuckGoRanking(domain, keyword);
+        }
+
+        let rank = 0;
+        let found = false;
+
+        // Clean domain for easier matching
+        const cleanDomain = domain.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+
+        // Organic result containers
+        $('div.g, div.MjjYud, div.tF2Cxc').each((i, el) => {
+            if (found) return;
+            
+            const link = $(el).find('a').attr('href');
+            if (link) {
+                const linkLower = link.toLowerCase();
+                if (linkLower.includes(cleanDomain)) {
+                    rank = i + 1;
+                    found = true;
+                }
+            }
+        });
+
+        // Fallback within Google if selectors missed it
+        if (!found) {
+            $('a').each((i, el) => {
+                if (found) return;
+                const href = $(el).attr('href');
+                if (href && href.startsWith('http') && !href.includes('google.com')) {
+                    if (href.toLowerCase().includes(cleanDomain)) {
+                        found = true;
+                        rank = -1; // Found but exact position unverified
+                    }
+                }
+            });
+        }
+
+        // If STILL not found in Google, try DDG as a second opinion
+        if (!found) {
+            console.log('[SEO Engine] Not found in Google top 30. Checking DuckDuckGo...');
+            return await getDuckDuckGoRanking(domain, keyword);
+        }
+
+        return rank;
+    } catch (e) {
+        console.error('[SEO Engine] Google ranking check failed:', e.message);
+        // Try fallback even on error
+        return await getDuckDuckGoRanking(domain, keyword);
+    }
+};
+
+// DuckDuckGo Ranking Helper (more scraper-friendly)
+const getDuckDuckGoRanking = async (domain, keyword) => {
+    if (!keyword) return 0;
+    try {
+        // DDG has a simpler HTML version that is very reliable for scraping
+        const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(keyword)}`;
+        const { $ } = await crawlPage(searchUrl);
+        let rank = 0;
+        let found = false;
+        const cleanDomain = domain.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+
+        $('.result__url').each((i, el) => {
+            if (found) return;
+            const link = $(el).text().toLowerCase();
+            if (link.includes(cleanDomain)) {
+                rank = i + 1;
+                found = true;
+            }
+        });
+        return rank;
+    } catch (e) {
+        console.error('[SEO Engine] DuckDuckGo ranking check failed:', e.message);
+        return 0;
+    }
+};
+
 // ─── main analyzer ─────────────────────────────────────────────────────────
 
 const analyzeSEO = async (url) => {
-    const { $, content, loadTime } = await crawlPage(url);
+    const { $, content, loadTime, headers } = await crawlPage(url);
     const urlObj = new URL(url);
     const origin = urlObj.origin;
 
@@ -100,11 +284,12 @@ const analyzeSEO = async (url) => {
     let technicalScore = 100;
 
     // ── Technical checks (parallel HTTP) ────────────────────────────────────
-    const [hasRobotsTxt, hasSitemap, hasCustom404, isWwwOptimized] = await Promise.all([
+    const [hasRobotsTxt, hasSitemap, hasCustom404, isWwwOptimized, brokenLinks] = await Promise.all([
         checkUrlExists(`${origin}/robots.txt`),
         checkUrlExists(`${origin}/sitemap.xml`),
         checkCustom404(origin),
-        checkWwwCanonical(url)
+        checkWwwCanonical(url),
+        checkBrokenLinks($, url)
     ]);
 
     if (!hasRobotsTxt) {
@@ -263,8 +448,35 @@ const analyzeSEO = async (url) => {
     else if (loadTime < 2000)  { performanceScore = 90; }
     else if (loadTime < 3500)  { performanceScore = 80; }
     else if (loadTime < 5000)  { performanceScore = 65; }
-    else if (loadTime < 8000)  { performanceScore = 50; }
+    else if (loadTime < 8000)  { performanceScore = 40; }
     else                        { performanceScore = 30; }
+
+    // ── Advanced SEO checks ─────────────────────────────────────────────────
+    const canonicalUrl = $('link[rel="canonical"]').attr('href') || '';
+    const robotsMeta = ($('meta[name="robots"]').attr('content') || '').toLowerCase();
+    const hasNoindex = robotsMeta.includes('noindex');
+    
+    if (hasNoindex) {
+        issues.push({ category: 'Technical', issue: 'Noindex Meta Tag Found', impact: 'High', recommendation: 'Your page has a noindex tag, which prevents search engines from indexing it. Remove it if this page should be public.' });
+        technicalScore -= 20;
+    }
+    
+    const ogTags = extractOgTags($);
+    const hasSchemaData = checkSchemaData($);
+    const contentFreshness = getContentFreshness($, headers);
+    
+    if (!hasSchemaData) {
+        issues.push({ category: 'On-Page', issue: 'Missing Schema.org Data', impact: 'Medium', recommendation: 'Add JSON-LD schema markup to help search engines understand your content better (e.g., Article, Product, or Organization).' });
+    }
+    
+    if (brokenLinks.length > 0) {
+        issues.push({ category: 'Technical', issue: 'Broken Internal Links', impact: 'Medium', recommendation: `Found ${brokenLinks.length} broken internal links. Fixing these improves crawlability and user experience.` });
+    }
+
+    const mobileSnapshotUrl = `https://s.thum.io/get/width/400/crop/800/${url}`;
+
+    // ── Google Ranking ──────────────────────────────────────────────────────
+    const googleRank = await getGoogleRanking(urlObj.hostname, topKeyword);
 
     technicalScore = Math.max(0, technicalScore);
     const seoScore = Math.floor((technicalScore + performanceScore) / 2);
@@ -308,8 +520,20 @@ const analyzeSEO = async (url) => {
         // responsive
         hasViewportMeta,
         hasMediaQueries,
+        // advanced
+        canonicalUrl,
+        hasNoindex,
+        ogTags,
+        hasSchemaData,
+        contentFreshness,
+        brokenLinks,
+        mobileSnapshotUrl,
         // accessibility
-        homepageReachable: true   // crawl succeeded if we reach here
+        homepageReachable: true,   // crawl succeeded if we reach here
+        googleRanking: {
+            rank: googleRank,
+            keyword: topKeyword
+        }
     };
 };
 

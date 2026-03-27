@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const UserPlan = require('../models/UserPlan');
 const jwt = require('jsonwebtoken');
 
 const generateToken = (id, email) => {
@@ -6,18 +7,20 @@ const generateToken = (id, email) => {
 };
 
 const registerUser = async (req, res) => {
-    const { name, email, password } = req.body;
+    const { name, email, password, mobile, countryCode } = req.body;
     try {
         const userExists = await User.findOne({ email });
         if (userExists) {
             return res.status(400).json({ message: 'User already exists' });
         }
-        const user = await User.create({ name, email, password });
+        const user = await User.create({ name, email, password, mobile, countryCode });
         if (user) {
             res.status(201).json({
                 _id: user._id,
                 name: user.name,
                 email: user.email,
+                mobile: user.mobile,
+                countryCode: user.countryCode,
                 role: user.role,
                 token: generateToken(user._id, user.email)
             });
@@ -35,11 +38,13 @@ const authUser = async (req, res) => {
     try {
         const user = await User.findOne({ email });
         if (user && (await user.matchPassword(password))) {
+            const userPlan = await UserPlan.findOne({ userId: user._id });
             res.json({
                 _id: user._id,
                 name: user.name,
                 email: user.email,
                 role: user.role,
+                hasPlan: !!userPlan,
                 token: generateToken(user._id, user.email)
             });
         } else {

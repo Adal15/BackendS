@@ -60,6 +60,37 @@ const reportSchema = new mongoose.Schema({
     keywords: [{ word: String, count: Number }],
     keywordsInTitle: { type: Boolean, default: false },
     keywordsInDesc:  { type: Boolean, default: false },
+    
+    // ── Advanced SEO ────────────────────────────────────────────────────────
+    canonicalUrl: { type: String, default: '' },
+    hasNoindex:   { type: Boolean, default: false },
+    
+    ogTags: {
+        title:       String,
+        description: String,
+        image:       String,
+        url:         String
+    },
+    
+    hasSchemaData: { type: Boolean, default: false },
+    
+    contentFreshness: {
+        lastModified:         Date,
+        ogUpdatedTime:        Date,
+        articlePublishedTime: Date
+    },
+    
+    brokenLinks: [{
+        url:    String,
+        status: Number,
+        text:   String
+    }],
+    
+    mobileSnapshotUrl: { type: String, default: '' },
+    googleRanking: {
+        rank: { type: Number, default: 0 },
+        keyword: { type: String, default: '' }
+    }
 
 }, { timestamps: true });
 

@@ -1,5 +1,6 @@
 const SEOReport = require('../models/Report');
 const Website = require('../models/Website');
+const UserPlan = require('../models/UserPlan');
 const { addAnalysisJob } = require('../services/queueService');
 
 const submitWebsite = async (req, res) => {
@@ -44,7 +45,12 @@ const getReport = async (req, res) => {
         }
         const report = await SEOReport.findOne({ _id: req.params.id, user: req.user._id }).populate('website');
         if (report) {
-            res.json(report);
+            // Fetch user plan
+            const userPlan = await UserPlan.findOne({ userId: req.user._id });
+            const reportData = report.toObject();
+            reportData.planType = userPlan ? userPlan.planType : 'Basic Report'; // Default to Basic if not found
+            
+            res.json(reportData);
         } else {
             res.status(404).json({ message: 'Report not found' });
         }
@@ -60,7 +66,18 @@ const getUserReports = async (req, res) => {
             return res.status(401).json({ message: 'Authentication required' });
         }
         const reports = await SEOReport.find({ user: req.user._id }).populate('website').sort({ createdAt: -1 });
-        res.json(reports);
+        
+        // Fetch user plan once for all reports
+        const userPlan = await UserPlan.findOne({ userId: req.user._id });
+        const planType = userPlan ? userPlan.planType : 'Basic Report';
+
+        const reportsWithPlan = reports.map(r => {
+            const obj = r.toObject();
+            obj.planType = planType;
+            return obj;
+        });
+
+        res.json(reportsWithPlan);
     } catch (error) {
         console.error('[Reports] Error in getUserReports:', error);
         res.status(500).json({ message: error.message });
