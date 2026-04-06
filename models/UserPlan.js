@@ -12,6 +12,20 @@ const userPlanSchema = new mongoose.Schema({
         enum: ['Basic Report', 'Advanced Report', 'Expert Report'],
         required: true
     },
+    pendingPlanType: {
+        type: String,
+        enum: ['Basic Report', 'Advanced Report', 'Expert Report'],
+        default: null
+    },
+    receiptUrl: {
+        type: String,
+        default: null
+    },
+    status: {
+        type: String,
+        enum: ['active', 'pending'],
+        default: 'active'
+    },
     selectedAt: {
         type: Date,
         default: Date.now

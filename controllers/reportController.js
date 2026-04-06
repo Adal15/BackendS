@@ -1,6 +1,7 @@
 const SEOReport = require('../models/Report');
 const Website = require('../models/Website');
 const UserPlan = require('../models/UserPlan');
+const User = require('../models/User');
 const { addAnalysisJob } = require('../services/queueService');
 
 const submitWebsite = async (req, res) => {
@@ -9,13 +10,59 @@ const submitWebsite = async (req, res) => {
     
     try {
         if (!req.user || !req.user._id) {
-            console.error('[Reports] Unauthorized attempt or missing user object in request');
+            console.error('[Reports] Unauthorized attempt or missing user object');
             return res.status(401).json({ message: 'Authentication required. Please log in again.' });
+        }
+
+        const freshUser = await User.findById(req.user._id);
+        const userRole = freshUser ? freshUser.role : req.user.role;
+        const limitOverride = freshUser ? freshUser.scanLimitOverride : null;
+
+        // 1. Check for Admin bypass (case-insensitive)
+        if (userRole && userRole.toLowerCase() === 'admin') {
+            console.log(`[Reports] Admin user ${req.user.email} bypassing limit check.`);
+            // Continue below to find/create website
+        } else {
+            let website = await Website.findOne({ url, user: req.user._id });
+            if (!website) {
+                const userPlan = await UserPlan.findOne({ userId: req.user._id });
+                const planType = userPlan ? userPlan.planType : 'Basic Report';
+                const websiteCount = await Website.countDocuments({ user: req.user._id });
+
+                console.log(`[Reports] Limit Check - User: ${req.user.email} | Override: ${limitOverride} | Used: ${websiteCount} | Plan: ${planType}`);
+
+                // 2. High priority: Check scanLimitOverride
+                if (limitOverride !== null && limitOverride !== undefined) {
+                    if (websiteCount >= limitOverride) {
+                        return res.status(403).json({ 
+                            message: 'PLAN_LIMIT_REACHED', 
+                            error: `Your account has a custom scan limit of ${limitOverride} websites. Currently used: ${websiteCount}. Please contact the administrator.` 
+                        });
+                    }
+                } 
+                // 3. Regular Plan Logic
+                else if (planType === 'Basic Report' && websiteCount >= 1) {
+                    return res.status(403).json({ 
+                        message: 'PLAN_LIMIT_REACHED', 
+                        error: 'Your current Basic plan allows for only 1 website analysis. Please upgrade to search new websites.' 
+                    });
+                } else if (planType === 'Advanced Report' && websiteCount >= 5) {
+                    return res.status(403).json({ 
+                        message: 'PLAN_LIMIT_REACHED', 
+                        error: 'Your current Advanced plan allows for up to 5 websites. Please upgrade to Expert Report to search more websites.' 
+                    });
+                } else if (planType === 'Expert Report' && websiteCount >= 25) {
+                    return res.status(403).json({ 
+                        message: 'PLAN_LIMIT_REACHED', 
+                        error: 'Your current Expert plan allows for up to 25 websites. Please contact support to increase your limit.' 
+                    });
+                }
+            }
         }
 
         let website = await Website.findOne({ url, user: req.user._id });
         if (!website) {
-            console.log(`[Reports] Creating new website entry for ${url}`);
+            console.log(`[Reports] Creating new website document for ${url}`);
             website = await Website.create({ url, user: req.user._id });
         }
 

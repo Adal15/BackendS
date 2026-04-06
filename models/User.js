@@ -7,7 +7,8 @@ const userSchema = new mongoose.Schema({
     password: { type: String, required: true },
     countryCode: { type: String, required: false },
     mobile: { type: String, required: false },
-    role: { type: String, enum: ['Admin', 'SEO Analyst', 'Client User'], default: 'Client User' }
+    role: { type: String, enum: ['Admin', 'SEO Analyst', 'Client User'], default: 'Client User' },
+    scanLimitOverride: { type: Number, default: null }
 }, { timestamps: true });
 
 userSchema.pre('save', async function () {

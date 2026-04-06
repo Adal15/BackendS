@@ -117,6 +117,17 @@ async function _createReport(url, userId, websiteId) {
         brokenLinks: r.brokenLinks,
         mobileSnapshotUrl: r.mobileSnapshotUrl,
         googleRanking: r.googleRanking,
+
+        // advanced performance & technical
+        performanceDetails: r.performanceDetails,
+        resourcesBreakdown: r.resourcesBreakdown,
+        hasAMP: r.hasAMP,
+        jsErrors: r.jsErrors,
+        hasHttp2: r.hasHttp2,
+        optimizedImages: r.optimizedImages,
+        minifiedAssets: r.minifiedAssets,
+        deprecatedHtml: r.deprecatedHtml,
+        inlineStyles: r.inlineStyles,
     });
 }
 

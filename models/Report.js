@@ -90,7 +90,45 @@ const reportSchema = new mongoose.Schema({
     googleRanking: {
         rank: { type: Number, default: 0 },
         keyword: { type: String, default: '' }
-    }
+    },
+
+    // ── Advanced Performance & SEO Features ──────────────────────────────────
+    performanceDetails: {
+        serverResTime:       { type: Number, default: 0 },
+        contentLoadTime:     { type: Number, default: 0 },
+        scriptsCompleteTime: { type: Number, default: 0 },
+        htmlSize:            { type: Number, default: 0 },
+        cssSize:             { type: Number, default: 0 },
+        jsSize:              { type: Number, default: 0 },
+        imgSize:             { type: Number, default: 0 },
+        otherSize:           { type: Number, default: 0 },
+        compressionRate:     { type: Number, default: 0 }
+    },
+    
+    resourcesBreakdown: {
+        htmlNodes:  { type: Number, default: 0 },
+        jsFiles:    { type: Number, default: 0 },
+        cssFiles:   { type: Number, default: 0 },
+        imgFiles:   { type: Number, default: 0 },
+        otherFiles: { type: Number, default: 0 }
+    },
+    
+    hasAMP:          { type: Boolean, default: false },
+    jsErrors:        { type: Number, default: 0 },
+    hasHttp2:        { type: Boolean, default: false },
+    optimizedImages: { type: Boolean, default: false },
+    minifiedAssets:  { type: Boolean, default: false },
+    
+    deprecatedHtml: [{
+        line:       Number,
+        tag:        String,
+        occurrences: Number
+    }],
+    
+    inlineStyles: [{
+        line:  Number,
+        style: String
+    }]
 
 }, { timestamps: true });
 
