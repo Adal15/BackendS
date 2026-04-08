@@ -23,6 +23,7 @@ const selectPlan = async (req, res) => {
         let userPlan = await UserPlan.findOne({ userId: req.user._id });
 
         if (planType === 'Basic Report') {
+            const websiteCount = await Website.countDocuments({ user: req.user._id });
             // Free plan upgrades immediately
             if (userPlan) {
                 userPlan.planType = planType;
@@ -30,12 +31,14 @@ const selectPlan = async (req, res) => {
                 userPlan.receiptUrl = null;
                 userPlan.status = 'active';
                 userPlan.selectedAt = Date.now();
+                userPlan.initialWebsiteCount = websiteCount;
                 await userPlan.save();
             } else {
                 userPlan = await UserPlan.create({
                     userId: req.user._id,
                     planType,
-                    status: 'active'
+                    status: 'active',
+                    initialWebsiteCount: websiteCount
                 });
             }
             return res.status(201).json({
@@ -90,25 +93,28 @@ const getUserPlan = async (req, res) => {
         const websiteCount = await Website.countDocuments({ user: req.user._id });
         
         let planType = userPlan ? userPlan.planType : 'Basic Report';
+        let initialCount = userPlan ? (userPlan.initialWebsiteCount || 0) : 0;
+        let websiteUsed = Math.max(0, websiteCount - initialCount);
+        
         let scansLeft;
         const pType = planType.toLowerCase();
         
         if (limitOverride !== null && limitOverride !== undefined) {
             totalLimit = limitOverride;
-            scansLeft = Math.max(0, limitOverride - websiteCount);
+            scansLeft = Math.max(0, limitOverride - websiteUsed);
         } else if (pType.includes('basic')) {
             totalLimit = 1;
-            scansLeft = Math.max(0, 1 - websiteCount);
+            scansLeft = Math.max(0, 1 - websiteUsed);
         } else if (pType.includes('advanced')) {
             totalLimit = 5;
-            scansLeft = Math.max(0, 5 - websiteCount);
+            scansLeft = Math.max(0, 5 - websiteUsed);
         } else if (pType.includes('expert')) {
             totalLimit = 25;
-            scansLeft = Math.max(0, 25 - websiteCount);
+            scansLeft = Math.max(0, 25 - websiteUsed);
         } else {
             // Default for any unknown plan type
             totalLimit = 1; 
-            scansLeft = Math.max(0, 1 - websiteCount);
+            scansLeft = Math.max(0, 1 - websiteUsed);
         }
 
         let responseData = {

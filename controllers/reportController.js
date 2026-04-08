@@ -87,15 +87,24 @@ const submitWebsite = async (req, res) => {
 
 const getReport = async (req, res) => {
     try {
-        if (!req.user || !req.user._id) {
+        const isAdmin = req.admin && req.admin.isAdmin;
+        const userId = req.user ? req.user._id : null;
+
+        if (!isAdmin && !userId) {
             return res.status(401).json({ message: 'Authentication required' });
         }
-        const report = await SEOReport.findOne({ _id: req.params.id, user: req.user._id }).populate('website');
+
+        let query = { _id: req.params.id };
+        if (!isAdmin) {
+            query.user = userId;
+        }
+
+        const report = await SEOReport.findOne(query).populate('website');
         if (report) {
-            // Fetch user plan
-            const userPlan = await UserPlan.findOne({ userId: req.user._id });
+            // Fetch the owner's plan so admin sees the same view as the user
+            const userPlan = await UserPlan.findOne({ userId: report.user });
             const reportData = report.toObject();
-            reportData.planType = userPlan ? userPlan.planType : 'Basic Report'; // Default to Basic if not found
+            reportData.planType = userPlan ? userPlan.planType : 'Basic Report';
             
             res.json(reportData);
         } else {

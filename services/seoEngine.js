@@ -1,4 +1,4 @@
-const { crawlPage } = require('./crawlerService');
+const { crawlPage, takeMobileSnapshot } = require('./crawlerService');
 const https = require('https');
 const axios = require('axios');
 
@@ -473,7 +473,7 @@ const analyzeSEO = async (url) => {
         issues.push({ category: 'Technical', issue: 'Broken Internal Links', impact: 'Medium', recommendation: `Found ${brokenLinks.length} broken internal links. Fixing these improves crawlability and user experience.` });
     }
 
-    const mobileSnapshotUrl = `https://s.thum.io/get/width/400/crop/800/${url}`;
+    const mobileSnapshotUrl = await takeMobileSnapshot(url);
 
     // ── Google Ranking ──────────────────────────────────────────────────────
     const googleRank = await getGoogleRanking(urlObj.hostname, topKeyword);

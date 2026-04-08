@@ -1,5 +1,7 @@
 const puppeteer = require('puppeteer');
 const cheerio = require('cheerio');
+const fs = require('fs');
+const path = require('path');
 
 const USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -74,4 +76,41 @@ const crawlPage = async (url) => {
     return { content, $, loadTime: median, headers: contentHeaders };
 };
 
-module.exports = { crawlPage };
+const takeMobileSnapshot = async (url) => {
+    try {
+        const snapshotsDir = path.join(__dirname, '..', 'uploads', 'snapshots');
+        if (!fs.existsSync(snapshotsDir)) {
+            fs.mkdirSync(snapshotsDir, { recursive: true });
+        }
+
+        const filename = `snapshot-${Date.now()}-${Math.random().toString(36).substring(7)}.png`;
+        const filePath = path.join(snapshotsDir, filename);
+
+        const browser = await puppeteer.launch({ 
+            headless: 'new', 
+            args: ['--no-sandbox', '--disable-setuid-sandbox'] 
+        });
+        const page = await browser.newPage();
+        
+        // Mobile-like viewport (iPhone 14)
+        await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
+        await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1');
+
+        console.log(`[Crawler] Taking mobile snapshot for ${url}...`);
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+        
+        // Wait a bit for animations/images to settle
+        await new Promise(r => setTimeout(r, 2000));
+        
+        await page.screenshot({ path: filePath });
+        await browser.close();
+
+        console.log(`[Crawler] Snapshot saved: ${filename}`);
+        return `/uploads/snapshots/${filename}`;
+    } catch (error) {
+        console.error(`[Crawler] Failed to take snapshot: ${error.message}`);
+        return '';
+    }
+};
+
+module.exports = { crawlPage, takeMobileSnapshot };

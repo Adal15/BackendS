@@ -37,4 +37,41 @@ const protect = async (req, res, next) => {
     }
 };
 
-module.exports = { protect };
+const flexibleProtect = async (req, res, next) => {
+    let token;
+    
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+        try {
+            token = req.headers.authorization.split(' ')[1];
+            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+            
+            // Case 1: Standard User
+            if (decoded.id) {
+                req.user = await User.findById(decoded.id).select('-password');
+                if (!req.user && decoded.email) {
+                    req.user = await User.findOne({ email: decoded.email }).select('-password');
+                }
+                if (req.user) {
+                    return next();
+                }
+            }
+
+            // Case 2: Admin
+            if (decoded.isAdmin) {
+                req.admin = decoded;
+                return next();
+            }
+
+            return res.status(401).json({ message: 'Not authorized, invalid token claims' });
+        } catch (error) {
+            console.error('[FlexibleAuth] Error:', error);
+            return res.status(401).json({ message: 'Not authorized, token failed' });
+        }
+    }
+    
+    if (!token) {
+        return res.status(401).json({ message: 'Not authorized, no token' });
+    }
+};
+
+module.exports = { protect, flexibleProtect };

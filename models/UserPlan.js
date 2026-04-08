@@ -29,6 +29,10 @@ const userPlanSchema = new mongoose.Schema({
     selectedAt: {
         type: Date,
         default: Date.now
+    },
+    initialWebsiteCount: {
+        type: Number,
+        default: 0
     }
 }, { timestamps: true });
 
