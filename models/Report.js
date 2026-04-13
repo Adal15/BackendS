@@ -128,7 +128,21 @@ const reportSchema = new mongoose.Schema({
     inlineStyles: [{
         line:  Number,
         style: String
-    }]
+    }],
+
+    // ── Social Results ───────────────────────────────────────────────────────
+    socialResults: {
+        score: { type: Number, default: 0 },
+        facebookLinked: { type: String, default: '' },
+        facebookOgTags: { type: Boolean, default: false },
+        facebookPixel:  { type: Boolean, default: false },
+        twitterLinked:  { type: String, default: '' },
+        twitterCards:   { type: Boolean, default: false },
+        instagramLinked: { type: String, default: '' },
+        linkedinLinked:  { type: String, default: '' },
+        youtubeLinked:   { type: String, default: '' },
+        youtubeActivity: { type: String, default: '' }
+    }
 
 }, { timestamps: true });
 

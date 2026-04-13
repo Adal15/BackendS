@@ -184,6 +184,41 @@ const getContentFreshness = ($, headers) => {
     };
 };
 
+const extractSocialResults = ($, content) => {
+    const facebookLinked  = $('a[href*="facebook.com"]').first().attr('href') || '';
+    const twitterLinked   = ($('a[href*="twitter.com"]').first().attr('href') || $('a[href*="x.com"]').first().attr('href') || '');
+    const instagramLinked = $('a[href*="instagram.com"]').first().attr('href') || '';
+    const linkedinLinked  = $('a[href*="linkedin.com"]').first().attr('href') || '';
+    const youtubeLinked   = $('a[href*="youtube.com"]').first().attr('href') || '';
+
+    const facebookOgTags = $('meta[property^="og:facebook"]').length > 0 || $('meta[property^="og:"]').length > 3;
+    const twitterCards   = $('meta[name^="twitter:"]').length > 0;
+    const facebookPixel  = content.includes('connect.facebook.net') || content.includes('fbq(');
+
+    let score = 0;
+    if (facebookLinked)  score += 15;
+    if (twitterLinked)   score += 10;
+    if (instagramLinked) score += 10;
+    if (linkedinLinked)  score += 10;
+    if (youtubeLinked)   score += 10;
+    if (facebookOgTags)  score += 15;
+    if (twitterCards)    score += 15;
+    if (facebookPixel)   score += 15;
+
+    return {
+        score: Math.min(100, score),
+        facebookLinked,
+        facebookOgTags,
+        facebookPixel,
+        twitterLinked,
+        twitterCards,
+        instagramLinked,
+        linkedinLinked,
+        youtubeLinked,
+        youtubeActivity: youtubeLinked ? 'Active' : '' // Simple placeholder for activity
+    };
+};
+
 // Google Ranking Helper
 const getGoogleRanking = async (domain, keyword) => {
     if (!keyword) return 0;
@@ -613,7 +648,9 @@ const analyzeSEO = async (url) => {
         googleRanking: {
             rank: googleRank,
             keyword: topKeyword
-        }
+        },
+
+        socialResults: extractSocialResults($, content)
     };
 };
 

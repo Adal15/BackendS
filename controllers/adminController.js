@@ -2,6 +2,8 @@ const User = require('../models/User');
 const Website = require('../models/Website');
 const SEOReport = require('../models/Report');
 const jwt = require('jsonwebtoken');
+const UpgradeHistory = require('../models/UpgradeHistory');
+
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@jts.com';
 const ADMIN_PASS = process.env.ADMIN_PASS || 'admin123';
@@ -152,10 +154,25 @@ const approvePlan = async (req, res) => {
     try {
         const { userId } = req.params;
         const userPlan = await UserPlan.findOne({ userId });
-
+        
         if (!userPlan || !userPlan.pendingPlanType) {
             return res.status(400).json({ message: 'No pending plan request found' });
         }
+
+        // Manual lookup converting userId to string to match the string _id in users collection
+        const user = await User.findOne({ _id: userId.toString() });
+
+        // Save to History
+        const historyRecord = new UpgradeHistory({
+            userId,
+            userName: user?.name || 'Unknown',
+            userEmail: user?.email || 'Unknown',
+            previousPlan: userPlan.planType,
+            requestedPlan: userPlan.pendingPlanType,
+            status: 'approved',
+            receiptUrl: userPlan.receiptUrl
+        });
+        await historyRecord.save();
 
         const websiteCount = await Website.countDocuments({ user: userId });
         userPlan.planType = userPlan.pendingPlanType;
@@ -182,6 +199,23 @@ const rejectPlan = async (req, res) => {
             return res.status(400).json({ message: 'User plan not found' });
         }
 
+        // Manual lookup converting userId to string to match the string _id in users collection
+        const user = await User.findOne({ _id: userId.toString() });
+
+        // Save to History
+        if (userPlan.pendingPlanType) {
+            const historyRecord = new UpgradeHistory({
+                userId,
+                userName: user?.name || 'Unknown',
+                userEmail: user?.email || 'Unknown',
+                previousPlan: userPlan.planType,
+                requestedPlan: userPlan.pendingPlanType,
+                status: 'rejected',
+                receiptUrl: userPlan.receiptUrl
+            });
+            await historyRecord.save();
+        }
+
         userPlan.pendingPlanType = null;
         userPlan.receiptUrl = null;
         userPlan.status = 'active';
@@ -194,4 +228,61 @@ const rejectPlan = async (req, res) => {
     }
 };
 
-module.exports = { adminLogin, getDashboardStats, getAllUsers, getAllReports, updateUserLimit, approvePlan, rejectPlan };
+const getUpgradeHistory = async (req, res) => {
+    try {
+        const history = await UpgradeHistory.find().sort({ createdAt: -1 });
+        res.json(history);
+    } catch (error) {
+        console.error('Get upgrade history error:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const getUserFullDetails = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const mongoose = require('mongoose');
+        
+        // 1. Get User Profile (String ID)
+        const user = await User.findOne({ _id: userId.toString() }).select('-password');
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        // 2. Get User Plan (ObjectId)
+        const userPlan = await UserPlan.findOne({ userId: new mongoose.Types.ObjectId(userId) });
+
+        // 3. Get Upgrade History (ObjectId)
+        const history = await UpgradeHistory.find({ userId: new mongoose.Types.ObjectId(userId) }).sort({ createdAt: -1 });
+
+        // 4. Get Websites (String ID)
+        const websites = await Website.find({ user: userId.toString() }).sort({ lastScanDate: -1 });
+
+        // 5. Get Reports (String ID)
+        const reports = await SEOReport.find({ user: userId.toString() })
+            .populate('website', 'url')
+            .select('website scanDate seoScore status titleText')
+            .sort({ scanDate: -1 });
+
+        res.json({
+            user,
+            plan: userPlan,
+            history: history,
+            websites: websites,
+            reports: reports
+        });
+    } catch (error) {
+        console.error('Get user full details error:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = { 
+    adminLogin, 
+    getDashboardStats, 
+    getAllUsers, 
+    getAllReports, 
+    updateUserLimit, 
+    approvePlan, 
+    rejectPlan, 
+    getUpgradeHistory,
+    getUserFullDetails
+};
